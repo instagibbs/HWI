@@ -65,16 +65,89 @@ class LedgerClient(HardwareWalletClient):
     # Current only supports segwit signing
     def sign_tx(self, tx):
         c_tx = CTransaction(tx.tx)
+        tx_bytes = c_tx.serialize_with_witness()
         
         # Master key fingerprint
         master_fpr = hash160(compress_public_key(self.app.getWalletPublicKey('')["publicKey"]))[:4]
 
+        # An entry per input, each with 0 to many keys to sign with
+        all_signature_attempts = []
+
+        # Inputs during segwit preprocessing step
+        segwit_inputs = []
+
+        # Detect changepath, (p2sh-)p2(w)pkh only
+        change_path = ''
+        for txout, i_num in zip(c_tx.vout, range(len(c_tx.vout))
+
+            # Find which wallet key could be change based on hdsplit: m/.../1/k
+            # Wallets shouldn't be sending to change address as user action
+            # otherwise this will get confused
+            for pubkey, path in tx.hd_keypaths.items():
+                if path[0] == master_fpr and len(path) > 2 and path[-2] == 1:
+                    # For possible matches, check if pubkey matches possible template
+                    if hash160(pubkey) in txout.scriptPubKey or hash160(0x160014)
+
+
         for txin, psbt_in, i_num in zip(c_tx.vin, tx.inputs, range(len(c_tx.vin))):
 
-        # Link keys to inputs
-        for pubkey, path in tx.hd_keypaths.items():
-            
 
+            # We will not attempt to sign non-witness inputs but
+            # need information for pre-processing
+            if psbt_in.non_witness_utxo:
+                segwit_inputs.append({"value":txin.prevout.hash+struct.pack("<I", txin.prevout.n)+struct.pack("<Q", psbt_in.non_witness_utxo.vout[txin.prevout.n].nValue), "witness":True, "sequence":txin.nSequence})
+                continue
+            else:
+                segwit_inputs.append({"value":txin.prevout.hash+struct.pack("<I", txin.prevout.n)+struct.pack("<Q", psbt_in.witness_utxo.nValue), "witness":True, "sequence":txin.nSequence})
+
+            pubkeys = []
+            signature_attempts = []
+
+            scriptCode = b""
+            witness_program = b""
+            if psbt_in.witness_utxo.is_p2sh():
+                # Look up redeemscript
+                redeemscript = tx.redeem_scripts[psbt_in.witness_utxo.scriptPubKey[2:22]]
+                witness_program += redeemscript
+            else:
+                witness_program += psbt_in.witness_utxo.scriptPubKey
+
+            # Check if witness_program is script hash
+            if len(witness_program) == 34 and witness_program[0] == OP_0 and witness_program[1] == 0x20:
+                # look up witnessscript and set as scriptCode
+                witnessscript = tx.witness_scripts[redeemscript[2:]]
+                scriptCode += witnessscript
+            else:
+                scriptCode += b"\x19\x76\xa9\x14"
+                scriptCode += redeemscript[2:]
+                scriptCode += b"\x88\xac"
+
+            # Find which pubkeys could sign this input
+            for pubkey in tx.hd_keypaths.keys():
+                if hash160(pubkey) in scriptCode or pubkey in scriptCode:
+                    pubkeys.append(pubkey)
+
+            # Figure out which keys in inputs are from our wallet
+            for pubkey in pubkeys:
+                keypath = tx.hd_keypaths[pubkey]
+                if master_fpr == keypath[0]:
+                    # Add the keypath strings
+                    keypath_str = ''
+                    for index in keypath[1:]:
+                        keypath_str += str(index) + "/"
+                    signature_attempts.append([keypath, pubkey])
+            
+            all_signature_attempts.append(signature_attempts)
+
+
+            # NOTE: This will likely get replaced on unified segwit/legacy signing firmware
+            # Process them up front with all scriptcodes blank
+            blank_script_code = bytearray()
+            for i in range(len(segwit_inputs)):
+                self.app.startUntrustedTransaction(i==0, i, segwit_inputs, blank_script_code, c_tx.nVersion)
+
+            # Number of unused fields for Nano S, only changepath and transaction in bytes req
+            outputData = self.app.finalizeInput("DUMMY", -1, -1, change_path, tx_bytes)
 
         # Link key(with m/.../1/k path) to change output(pick the first matching)
 
