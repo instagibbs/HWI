@@ -63,9 +63,32 @@ class LedgerClient(HardwareWalletClient):
 
     # Must return a hex string with the signed transaction
     # The tx must be in the combined unsigned transaction format
+    # Current only supports segwit signing
     def sign_tx(self, tx):
-        raise NotImplementedError('The HardwareWalletClient base class does not '
-            'implement this method')
+        c_tx = CTransaction(tx.tx)
+        
+        # Master key fingerprint
+        master_fpr = hash160(compress_public_key(self.app.getWalletPublicKey('')["publicKey"]))[:4]
+
+        for txin, psbt_in, i_num in zip(c_tx.vin, tx.inputs, range(len(c_tx.vin))):
+
+        # Link keys to inputs
+        for pubkey, path in tx.hd_keypaths.items():
+            
+
+
+        # Link key(with m/.../1/k path) to change output(pick the first matching)
+
+        # Build segwit inputs for ledger
+
+        # Finalize input
+
+        # Segwit sign any input that has linked key
+
+        # Fill out partial signature fields
+
+        # Send PSBT back
+        return c_tx.serialize()
 
     # Must return a base64 encoded string with the signed message
     # The message can be any string
