@@ -686,7 +686,7 @@ class PSBT(object):
                     utxo = psbt_input.witness_utxo.serialize()
                     r += ser_compact_size(len(utxo))
                     r += utxo
-                elif psbt_input.non_witness_utxo:
+                if psbt_input.non_witness_utxo:
                     r += b"\x01\x00"
                     utxo = psbt_input.non_witness_utxo.serialize()
                     r += ser_compact_size(len(utxo))
