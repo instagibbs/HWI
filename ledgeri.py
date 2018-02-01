@@ -162,7 +162,7 @@ class LedgerClient(HardwareWalletClient):
         for i in range(len(segwit_inputs)):
             for signature_attempt in all_signature_attempts[i]:
                 self.app.startUntrustedTransaction(False, 0, [segwit_inputs[i]], script_codes[i], c_tx.nVersion)
-                tx.inputs[i].partial_sigs.push_back(app.untrustedHashSign(signature_attempt[0], "", c_tx.nLockTime, 0x01))
+                tx.inputs[i].partial_sigs[signature_attempt[1]] = app.untrustedHashSign(signature_attempt[0], "", c_tx.nLockTime, 0x01)
 
         # Send PSBT back
         return c_tx.serialize()
