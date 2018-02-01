@@ -76,8 +76,10 @@ class LedgerClient(HardwareWalletClient):
         # Inputs during segwit preprocessing step
         segwit_inputs = []
 
+        script_codes = []*len(c_tx.vin)
+
         # Detect changepath, (p2sh-)p2(w)pkh only
-        change_path = ''
+        change_path = '0'
         for txout, i_num in zip(c_tx.vout, range(len(c_tx.vout))
 
             # Find which wallet key could be change based on hdsplit: m/.../1/k
@@ -86,7 +88,10 @@ class LedgerClient(HardwareWalletClient):
             for pubkey, path in tx.hd_keypaths.items():
                 if path[0] == master_fpr and len(path) > 2 and path[-2] == 1:
                     # For possible matches, check if pubkey matches possible template
-                    if hash160(pubkey) in txout.scriptPubKey or hash160(0x160014)
+                    if hash160(pubkey) in txout.scriptPubKey or hash160("160014".decode('hex')+hash160(pubkey)) in txout.scriptPubKey:
+                       for index in path[1:]
+                            change_path += str(index)+"/"
+                        change_path = change_path[:-1]
 
 
         for txin, psbt_in, i_num in zip(c_tx.vin, tx.inputs, range(len(c_tx.vin))):
@@ -122,6 +127,9 @@ class LedgerClient(HardwareWalletClient):
                 scriptCode += redeemscript[2:]
                 scriptCode += b"\x88\xac"
 
+            # Save scriptcode for later signing
+            script_codes[i_num] = scriptCode
+
             # Find which pubkeys could sign this input
             for pubkey in tx.hd_keypaths.keys():
                 if hash160(pubkey) in scriptCode or pubkey in scriptCode:
@@ -135,29 +143,26 @@ class LedgerClient(HardwareWalletClient):
                     keypath_str = ''
                     for index in keypath[1:]:
                         keypath_str += str(index) + "/"
-                    signature_attempts.append([keypath, pubkey])
+                    keypath_str = keypath_str[:-1]
+                    signature_attempts.append([keypath_str, pubkey])
             
             all_signature_attempts.append(signature_attempts)
 
 
-            # NOTE: This will likely get replaced on unified segwit/legacy signing firmware
-            # Process them up front with all scriptcodes blank
-            blank_script_code = bytearray()
-            for i in range(len(segwit_inputs)):
-                self.app.startUntrustedTransaction(i==0, i, segwit_inputs, blank_script_code, c_tx.nVersion)
+        # NOTE: This will likely get replaced on unified segwit/legacy signing firmware
+        # Process them up front with all scriptcodes blank
+        blank_script_code = bytearray()
+        for i in range(len(segwit_inputs)):
+            self.app.startUntrustedTransaction(i==0, i, segwit_inputs, blank_script_code, c_tx.nVersion)
 
-            # Number of unused fields for Nano S, only changepath and transaction in bytes req
-            outputData = self.app.finalizeInput("DUMMY", -1, -1, change_path, tx_bytes)
+        # Number of unused fields for Nano S, only changepath and transaction in bytes req
+        outputData = self.app.finalizeInput("DUMMY", -1, -1, change_path, tx_bytes)
 
-        # Link key(with m/.../1/k path) to change output(pick the first matching)
-
-        # Build segwit inputs for ledger
-
-        # Finalize input
-
-        # Segwit sign any input that has linked key
-
-        # Fill out partial signature fields
+        # For each input we control do segwit signature
+        for i in range(len(segwit_inputs)):
+            for signature_attempt in all_signature_attempts[i]:
+                self.app.startUntrustedTransaction(False, 0, [segwit_inputs[i]], script_codes[i], c_tx.nVersion)
+                tx.inputs[i].partial_sigs.push_back(app.untrustedHashSign(signature_attempt[0], "", c_tx.nLockTime, 0x01))
 
         # Send PSBT back
         return c_tx.serialize()
