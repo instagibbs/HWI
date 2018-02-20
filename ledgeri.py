@@ -10,7 +10,6 @@ import base58
 from serializations import hash256, hash160, ser_uint256, PSBT, CTransaction
 import binascii
 
-from pdb import set_trace
 # This class extends the HardwareWalletClient for Ledger Nano S specific things
 class LedgerClient(HardwareWalletClient):
 
@@ -71,7 +70,7 @@ class LedgerClient(HardwareWalletClient):
         
         # Master key fingerprint
         # FIXME deal with only knowing xpub version master?
-        master_fpr = hash160(compress_public_key(self.app.getWalletPublicKey('44\'/0\'/0\'/0\'/0')["publicKey"]))[:4]
+        master_fpr = hash160(compress_public_key(self.app.getWalletPublicKey('44\'/0\'/0\'')["publicKey"]))[:4]
 
         # An entry per input, each with 0 to many keys to sign with
         all_signature_attempts = []
@@ -101,12 +100,10 @@ class LedgerClient(HardwareWalletClient):
         for txin, psbt_in, i_num in zip(c_tx.vin, tx.inputs, range(len(c_tx.vin))):
 
             seq = format(txin.nSequence, 'x')
-            seq = seq.zfill(len(seq)+len(seq)%2)
+            seq = seq.zfill(8)
             seq = bytearray(seq.decode('hex'))
             seq.reverse()
             seq_hex = ''.join('{:02x}'.format(x) for x in seq)
-
-            seq_hex = binascii.hexlify(ser_uint256(txin.nSequence))
 
             # We will not attempt to sign non-witness inputs but
             # need information for pre-processing
@@ -134,14 +131,13 @@ class LedgerClient(HardwareWalletClient):
                 witnessscript = tx.witness_scripts[redeemscript[2:]]
                 scriptCode += witnessscript
             else:
-                scriptCode += b"\x19\x76\xa9\x14"
+                scriptCode += b"\x76\xa9\x14"
                 scriptCode += redeemscript[2:]
                 scriptCode += b"\x88\xac"
 
             # Save scriptcode for later signing
             script_codes[i_num] = scriptCode
 
-            set_trace()
             # Find which pubkeys could sign this input
             for pubkey in tx.hd_keypaths.keys():
                 if hash160(pubkey) in scriptCode or pubkey in scriptCode:
@@ -150,7 +146,7 @@ class LedgerClient(HardwareWalletClient):
             # Figure out which keys in inputs are from our wallet
             for pubkey in pubkeys:
                 keypath = tx.hd_keypaths[pubkey]
-                if master_fpr != keypath[0]:
+                if master_fpr == struct.pack("<I", keypath[0]):
                     # Add the keypath strings
                     keypath_str = ''
                     for index in keypath[1:]:
@@ -159,7 +155,6 @@ class LedgerClient(HardwareWalletClient):
                     signature_attempts.append([keypath_str, pubkey])
             
             all_signature_attempts.append(signature_attempts)
-
 
         # NOTE: This will likely get replaced on unified segwit/legacy signing firmware
         # Process them up front with all scriptcodes blank
