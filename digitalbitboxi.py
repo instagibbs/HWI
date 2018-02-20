@@ -229,7 +229,7 @@ class DigitalBitboxClient(HardwareWalletClient):
                     scriptCode += witnessscript
                 else:
                     scriptCode += b"\x19\x76\xa9\x14"
-                    scriptCode += redeemscript[2:]
+                    scriptCode += witness_program[2:]
                     scriptCode += b"\x88\xac"
 
                 # Find pubkeys to sign with in the scriptCode

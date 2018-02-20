@@ -132,7 +132,7 @@ class LedgerClient(HardwareWalletClient):
                 scriptCode += witnessscript
             else:
                 scriptCode += b"\x76\xa9\x14"
-                scriptCode += redeemscript[2:]
+                scriptCode += witness_program[2:]
                 scriptCode += b"\x88\xac"
 
             # Save scriptcode for later signing
