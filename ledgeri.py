@@ -88,7 +88,7 @@ class LedgerClient(HardwareWalletClient):
             # Wallets shouldn't be sending to change address as user action
             # otherwise this will get confused
             for pubkey, path in tx.hd_keypaths.items():
-                if path[0] == master_fpr and len(path) > 2 and path[-2] == 1:
+                if struct.pack("<I", path[0]) == master_fpr and len(path) > 2 and path[-2] == 1:
                     # For possible matches, check if pubkey matches possible template
                     if hash160(pubkey) in txout.scriptPubKey or hash160("160014".decode('hex')+hash160(pubkey)) in txout.scriptPubKey:
                         for index in path[1:]:
