@@ -73,12 +73,11 @@ class LedgerClient(HardwareWalletClient):
         master_fpr = hash160(compress_public_key(self.app.getWalletPublicKey('44\'/0\'/0\'')["publicKey"]))[:4]
 
         # An entry per input, each with 0 to many keys to sign with
-        all_signature_attempts = []
+        all_signature_attempts = [[]]*len(c_tx.vin)
 
         # Inputs during segwit preprocessing step
         segwit_inputs = []
 
-        # Length check barfs due to printing(?) just iterate
         script_codes = [[]]*len(c_tx.vin)
 
         # Detect changepath, (p2sh-)p2(w)pkh only
@@ -154,7 +153,7 @@ class LedgerClient(HardwareWalletClient):
                     keypath_str = keypath_str[:-1]
                     signature_attempts.append([keypath_str, pubkey])
             
-            all_signature_attempts.append(signature_attempts)
+            all_signature_attempts[i_num] = signature_attempts
 
         # NOTE: This will likely get replaced on unified segwit/legacy signing firmware
         # Process them up front with all scriptcodes blank
