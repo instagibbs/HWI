@@ -81,16 +81,16 @@ class LedgerClient(HardwareWalletClient):
         script_codes = [[]]*len(c_tx.vin)
 
         # Detect changepath, (p2sh-)p2(w)pkh only
-        change_path = '0'
+        change_path = ''
         for txout, i_num in zip(c_tx.vout, range(len(c_tx.vout))):
-
             # Find which wallet key could be change based on hdsplit: m/.../1/k
             # Wallets shouldn't be sending to change address as user action
             # otherwise this will get confused
             for pubkey, path in tx.hd_keypaths.items():
                 if struct.pack("<I", path[0]) == master_fpr and len(path) > 2 and path[-2] == 1:
                     # For possible matches, check if pubkey matches possible template
-                    if hash160(pubkey) in txout.scriptPubKey or hash160("160014".decode('hex')+hash160(pubkey)) in txout.scriptPubKey:
+                    if hash160(pubkey) in txout.scriptPubKey or hash160("0014".decode('hex')+hash160(pubkey)) in txout.scriptPubKey:
+                        change_path = ''
                         for index in path[1:]:
                             change_path += str(index)+"/"
                         change_path = change_path[:-1]
